@@ -1,0 +1,11 @@
+__pycache__
+.vscode
+*.out
+*.pt
+*.npy
+*.txt
+*.pkl
+*.ipynb_checkpoints
+*.sh
+*.ipynb
+results/
