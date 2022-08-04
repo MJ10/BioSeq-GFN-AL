@@ -27,7 +27,7 @@ parser.add_argument("--name", default='test_mlp')
 parser.add_argument("--load_scores_path", default='.')
 
 # Multi-round
-parser.add_argument("--num_rounds", default=3, type=int)
+parser.add_argument("--num_rounds", default=1, type=int)
 parser.add_argument("--task", default="tfbind", type=str)
 parser.add_argument("--num_sampled_per_round", default=128, type=int)
 parser.add_argument("--vocab_size", default=4)
@@ -254,7 +254,7 @@ def train_generator(args, generator, oracle, tokenizer, dataset):
     print("Training generator")
     visited = []
     rollout_worker = RolloutWorker(args, oracle, tokenizer)
-    for it in tqdm(range(args.gen_num_iterations + 1)):
+    for it in range(args.gen_num_iterations + 1):
         rollout_artifacts = rollout_worker.execute_train_episode_batch(generator, it, dataset)
         visited.extend(rollout_artifacts["visited"])
 
@@ -287,7 +287,7 @@ def sample_batch(args, rollout_worker, generator, current_dataset, oracle):
     print("Generating samples")
     samples = ([], [])
     scores = []
-    while len(samples[0]) < args.num_sampled_per_round * 1:
+    while len(samples[0]) < args.num_sampled_per_round * 100:
         rollout_artifacts = rollout_worker.execute_train_episode_batch(generator, it=0, use_rand_policy=False)
         states = rollout_artifacts["trajectories"]["states"]
         vals = oracle(states).reshape(-1)

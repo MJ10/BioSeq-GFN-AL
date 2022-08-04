@@ -178,7 +178,7 @@ class EnsembleRegressor(nn.Module):
         if reset:
             self.init_model()
 
-        for it in tqdm(range(self.proxy_num_iterations), disable=True):
+        for it in range(self.proxy_num_iterations):
             x, y = data.sample(self.args.proxy_num_per_minibatch)
             x = self.tokenizer.process(x).to(self.device)
             y = torch.tensor(y, device=self.device, dtype=torch.float).reshape(-1)
@@ -229,6 +229,7 @@ class EnsembleRegressor(nn.Module):
         return {}
     
     def _call_models(self, x):
+        x = self.tokenizer.process(x).to(self.device)
         if self.args.proxy_arch == "mlp":
             inp_x = F.one_hot(x, num_classes=self.num_tokens+1)[:, :, :-1].to(torch.float32)
             inp = torch.zeros(x.shape[0], self.max_len, self.num_tokens)
