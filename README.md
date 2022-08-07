@@ -2,7 +2,7 @@
 
 This repo contains code for the paper [Biological Sequence Design with GFlowNets](http://arxiv.org/abs/2203.04115). 
 
-The code has been extracted from an internal repository of the Mila Molecule Discovery project. Original commits are lost here, but the credit goes to [@MJ10](https://github.com/MJ10) and [@bengioe](https://github.com/bengioe).  
+The code has been extracted from an internal repository of the Mila Molecule Discovery project with some changes, so the hyperparameters might vary. Original commits are lost here, but the credit goes to [@MJ10](https://github.com/MJ10) and [@bengioe](https://github.com/bengioe).  
 
 ## Setup
 The code has been tested with Python 3.7 with CUDA 10.2 and CUDNN 8.0.
@@ -14,5 +14,9 @@ The code has been tested with Python 3.7 with CUDA 10.2 and CUDNN 8.0.
 ## Running the code
 `run_amp.py`, `run_gfp.py`, and `run_tfbind.py` are the entry points for the experiments.
 
+Example:
+```bash
+python run_tfbind.py --gen_do_explicit_Z 1 --acq_fn ucb --gen_num_iterations 2500 --gen_reward_exp 8 --gen_data_sample_per_step 8 --proxy_num_iterations 10000 --gen_Z_learning_rate 1e-1 --gen_learning_rate 1e-3
+```
 
 Please reach out to Moksh Jain, [mokshjn00@gmail.com](mokshjn00@gmail.com) for any issues, comments, questions or suggestions.
