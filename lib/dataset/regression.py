@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.model_selection import GroupKFold, train_test_split
 from clamp_common_eval.defaults import get_default_data_splits
 import design_bench
-
+import pandas as pd
 import os.path as osp
 
 from lib.dataset.base import Dataset
@@ -211,3 +211,47 @@ class GFPDataset(Dataset):
         seqs = np.concatenate((self.train[self.train_added:], self.valid[self.val_added:]), axis=0)
         data = (seqs, scores)
         return self._top_k(data, k)
+
+class FullExperimentalDataset:
+    def __init__(self, args):
+        self.args = args
+        self.rng = np.random.RandomState(142857)
+    
+    def _load_dataset(self):
+        path = self.args.data_path
+        data = pd.read_csv(path)
+    
+    def score_with_model(self, model):
+        pass
+
+    def sample(self, n):
+        indices = np.random.randint(0, len(self.train), n)
+        return ([self.train[i] for i in indices],
+                [self.train_scores[i] for i in indices])
+
+    def validation_set(self):
+        return self.valid, self.valid_scores
+
+
+class LogRankedExperimentalDataset:
+    def __init__(self, args):
+        self.args = args
+        self.rng = np.random.RandomState(142857)
+    
+    def _load_dataset(self):
+        path = self.args.data_path
+        data = pd.read_csv(path)
+        x = data['seq'].tolist()
+        y = data['logrank'].tolist()
+        self.train, self.valid, self.train_scores, self.valid_scores  = train_test_split(x, y, test_size=0.2, random_state=self.rng)
+
+    def score_with_model(self, model):
+        pass
+    
+    def sample(self, n):
+        indices = np.random.randint(0, len(self.train), n)
+        return ([self.train[i] for i in indices],
+                [self.train_scores[i] for i in indices])
+
+    def validation_set(self):
+        return self.valid, self.valid_scores

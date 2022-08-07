@@ -9,3 +9,5 @@ __pycache__
 *.sh
 *.ipynb
 results/
+data/
+test_env/
