@@ -4,7 +4,7 @@ project_name: bioseqgfn_al
 version: v0.0.1
 
 # Directories for loading and storing data
-data_dir: /home/mila/m/moksh.jain/scratch/lambo
+data_dir: /home/mila/m/moksh.jain/scratch/amp
 exp_name: test
 group_name: somedetails
 exp_tags: []
@@ -13,6 +13,8 @@ timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 log_dir: ${data_dir}/${exp_name}
 wandb_mode: disabled
 data_path: 'data/'
+num_samples: 10000
+load_proxy_path: null
 
 hydra:
   run:
@@ -21,56 +23,64 @@ hydra:
     dir: ${log_dir}
     subdir: .
 
+dataset:
+  _target_: lib.dataset.regression.AMPClassificationDataset
+  split: "D"
+  nfold: 5
+
+tokenizer:
+  _target_: lib.utils.tokenizers.ResidueTokenizer
+
 gfn:
   random_action_prob: 0.01
-  max_len: 60
-  min_len: 15
-  batch_size: 128
-  reward_exp: 8
-  reward_min: 1e-80
+  max_len: 50
+  min_len: 12
+  batch_size: 32
+  reward_min: 1e-20
   reward_max: 100
   sampling_temp: 1
-  train_steps: 100
-  pi_lr: 0.0001
-  z_lr: 0.001
+  train_steps: 10000
+  pi_lr: 0.001
+  z_lr: 0.01
   wd: 0.0001
   gen_clip: 10
-  sample_beta: 4
+  sample_beta: 8
   eval_freq: 100
-  k: 10
-  num_samples: 128
+  k: 100
+  num_samples: 5000
   data_per_step: 16
-
+  
   model:
-    _target_: src.models.
+    _target_: lib.model.transformer.GFNTransformer
     max_len: 60
     vocab_size: 26
     num_actions: 21
-    num_hid: 256
+    num_hid: 64
     num_layers: 3
-    num_head: 16
+    num_head: 8
     dropout: 0
-    batch_size: 128
+    partition_init: 50
 
 proxy:
-  _target_: src.models.
-  proxy_learning_rate: 1e-5
+  _target_: lib.proxy.regression.TransformerDropout
+  learning_rate: 1e-5
   num_layers: 4
-  dropout: 0.1
-  num_hid: 1024
   L2: 1e-6
-  batch_size: 
+  batch_size: 128
   early_stop_tol: 5
   train_steps: 100000
   num_dropout_samples: 25
-  
+  max_len: 65
+  classification: True
+  early_stop_to_best_params: True
+  save_path: 'proxy.pt'  
   model: 
-    _target_: src.models.
-    max_len: 60
+    _target_: lib.model.transformer.Transformer
+    max_len: 65
     vocab_size: 26
-    num_actions: 21
-    num_hid: 256
+    num_outputs: 1
+    num_hid: 64
     num_layers: 3
-    num_head: 16
+    num_head: 8
     dropout: 0
-    batch_size: 128
+    partition_init: 30

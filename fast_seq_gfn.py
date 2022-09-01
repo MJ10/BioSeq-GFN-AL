@@ -5,10 +5,13 @@ import time
 import numpy as np
 import torch
 import random
+import os
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
+import torch.nn as nn
 
-from omegaconf import OmegaConf
+from lib.utils.tokenizers import str_to_tokens, tokens_to_str
+from omegaconf import OmegaConf, DictConfig
 from collections.abc import MutableMapping
 
 from torch.distributions import Categorical
@@ -47,7 +50,7 @@ def flatten_config(d, parent_key='', sep='_'):
             items.append((new_key, v))
     return dict(items)
 
-class MOGFN:
+class GFN:
     def __init__(self, cfg, tokenizer, **kwargs):
         self.cfg = cfg
         self.tokenizer = tokenizer
@@ -69,16 +72,16 @@ class MOGFN:
         self.sampling_temp = cfg.sampling_temp
         self.sample_beta = cfg.sample_beta
         # Eval Stuff
-        self.eval_metrics = cfg.eval_metrics
-        self.eval_freq = cfg.eval_freq
-        self.k = cfg.k
-        self.num_samples = cfg.num_samples
+        # self.eval_freq = cfg.eval_freq
+        # self.k = cfg.k
+        # self.num_samples = cfg.num_samples
         self.eos_char = "[SEP]"
         self.pad_tok = self.tokenizer.convert_token_to_id("[PAD]")
+        self.sigmoid = nn.Sigmoid()
 
     def init_policy(self):
         cfg = self.cfg
-        self.model = hydra.utils.instantiate(cfg.model, cfg.model)
+        self.model = hydra.utils.instantiate(cfg.model)
 
         self.model.to(self.device)
         self.opt = torch.optim.Adam(self.model.model_params(), cfg.pi_lr, weight_decay=cfg.wd,
@@ -94,23 +97,22 @@ class MOGFN:
         losses, rewards = [], []
         pb = tqdm(range(self.train_steps))
         desc_str = "Evaluation := Reward: {:.3f} | Train := Loss: {:.3f} Rewards: {:.3f}"
-        pb.set_description(desc_str.format(rs.mean(), sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
+        pb.set_description(desc_str.format(0, sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
 
         for i in pb:
             loss, r = self.train_step(task, self.batch_size)
             losses.append(loss)
             rewards.append(r)
             
-            if i != 0 and i % self.eval_freq == 0:
-                with torch.no_grad():
-                    self.evaluation(task)
+            # if i % self.eval_freq == 0:
+            #     with torch.no_grad():
+            #         self.evaluation(task)
                 
-            pb.set_description(desc_str.format(rs.mean(), sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
+            pb.set_description(desc_str.format(0, sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
         
         return {
             'losses': losses,
-            'train_rs': rewards,
-            'hypervol_rel': hv
+            'train_rs': rewards
         }
     
     def train_step(self, task, batch_size):
@@ -119,14 +121,14 @@ class MOGFN:
         r = self.process_reward(states, task).to(self.device)
         self.opt.zero_grad()
         self.opt_Z.zero_grad()
-        
+        import pdb; pdb.set_trace();
         # TB Loss
         loss = (logprobs - self.sample_beta * r.clamp(self.reward_min).log()).pow(2).mean()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gen_clip)
         self.opt.step()
         self.opt_Z.step()
-        return loss.item(), log_r.mean()
+        return loss.item(), r.mean()
 
 
     def sample(self, episodes, train=True):
@@ -145,7 +147,7 @@ class MOGFN:
                 logits[:, 0] = -1000 # Prevent model from stopping
                                      # without having output anything
                 if t == 0:
-                    traj_logprob += self.model.Z(cond_var)
+                    traj_logprob += self.model.Z()
 
             cat = Categorical(logits=logits / self.sampling_temp)
             actions = cat.sample()
@@ -165,16 +167,19 @@ class MOGFN:
         states = tokens_to_str(x.t(), self.tokenizer)
         return states, traj_logprob
     
-    def generate(self, num_samples):
+    def generate(self, num_samples, task):
         generated_seqs = []
-        while len(samples) < num_samples:
+        rewards = []
+        while len(generated_seqs) < num_samples:
             with torch.no_grad():
-                samples, _ = self.sample(self.eval_batch_size)
+                samples, _ = self.sample(self.eval_batch_size, train=False).tolist()
+                r = self.process_reward(samples, task).numpy().tolist()
             generated_seqs.extend(samples)
-        return generated_seqs
+            rewards.extend(r)
+        return generated_seqs, np.array(rewards)
 
     def process_reward(self, seqs, task):
-        return task.score(seqs)
+        return self.sigmoid(task(seqs))
 
     def val_step(self, batch_size, task):
         overall_loss = 0.
@@ -206,6 +211,7 @@ class MOGFN:
         seq_logits += self.model.Z()
         return seq_logits
 
+@hydra.main(config_path='./config', config_name='amp')
 def main(config):
     random.seed(None)  # make sure random seed resets between multirun jobs for random job-name generation
 
@@ -214,26 +220,26 @@ def main(config):
         
     # init_run()
 
-    wandb.init(project='torch_seq_moo', config=log_config, mode=config.wandb_mode,
+    wandb.init(project='bioseqgfn', config=log_config, mode=config.wandb_mode,
                group=config.group_name, name=config.exp_name, tags=config.exp_tags)
     config['job_name'] = wandb.run.name
     config = init_run(config)
     
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device("cpu")
-    dataset = get_dataset(args, oracle)
-    proxy = train_proxy(args, tokenizer, dataset=dataset)
-
-    generator = MOFGN(args, tokenizer)
+    dataset = hydra.utils.instantiate(config.dataset)
+    tokenizer = hydra.utils.instantiate(config.tokenizer)
+    proxy = hydra.utils.instantiate(config.proxy, config.proxy, device=device, tokenizer=tokenizer)
+    if config.load_proxy_path is not None and os.path.exists(config.load_proxy_path):
+        # import pdb; pdb.set_trace();
+        proxy.load(config.load_proxy_path)
+    else:
+        proxy.fit(dataset)
+    generator = GFN(config.gfn, tokenizer)
     generator.optimize(proxy)
 
-    samples = generator.sample(args.num_samples)
-    scores = proxy.score(samples)
-        
+    samples, scores = generator.generate(config.num_samples)
+    # scores = proxy.score(samples)
+    wandb.finish()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    
-
-    args = parser.parse_args()
-    main(args)
+    main()

@@ -35,7 +35,7 @@ class GFNTransformer(nn.Module):
         self.logsoftmax2 = torch.nn.LogSoftmax(2)
         self.num_hid = num_hid
 
-    def Z(self, cond_var):
+    def Z(self):
         return self.Z_mod.sum()
 
     def model_params(self):
@@ -59,6 +59,31 @@ class GFNTransformer(nn.Module):
             out = self.output(x)
             return self.logsoftmax2(out) if logsoftmax else out
         
+        y = self.output(pooled_x)
+        return y
+
+class Transformer(nn.Module):
+    def __init__(self, num_hid, max_len, vocab_size, num_outputs, dropout, num_layers, partition_init,
+                num_head, **kwargs):
+        super().__init__()
+        self.pos = PositionalEncoding(num_hid, dropout=dropout, max_len=max_len + 2)
+        self.embedding = nn.Embedding(vocab_size, num_hid)
+        encoder_layers = nn.TransformerEncoderLayer(num_hid, num_head, num_hid, dropout=dropout)
+        self.encoder = nn.TransformerEncoder(encoder_layers, num_layers)
+        self.output = MLP(num_hid, num_outputs, [4 * num_hid, 4 * num_hid], dropout)
+        self.logsoftmax2 = torch.nn.LogSoftmax(2)
+        self.num_hid = num_hid
+
+    def model_params(self):
+        return list(self.pos.parameters()) + list(self.embedding.parameters()) + list(self.encoder.parameters()) + \
+            list(self.output.parameters())
+
+    def forward(self, x, mask):
+        x = self.embedding(x)
+        x = self.pos(x)
+        x = self.encoder(x, src_key_padding_mask=mask)
+        pooled_x = x[0, torch.arange(x.shape[1])]
+
         y = self.output(pooled_x)
         return y
 

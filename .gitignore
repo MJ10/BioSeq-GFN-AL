@@ -11,3 +11,4 @@ __pycache__
 results/
 data/
 test_env/
+test/
