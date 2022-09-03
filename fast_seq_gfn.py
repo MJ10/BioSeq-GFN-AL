@@ -9,8 +9,10 @@ import os
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
 import torch.nn as nn
+import itertools
 
 from lib.utils.tokenizers import str_to_tokens, tokens_to_str
+from lib.utils.distance import is_similar, edit_dist
 from omegaconf import OmegaConf, DictConfig
 from collections.abc import MutableMapping
 
@@ -77,7 +79,7 @@ class GFN:
         # self.num_samples = cfg.num_samples
         self.eos_char = "[SEP]"
         self.pad_tok = self.tokenizer.convert_token_to_id("[PAD]")
-        self.sigmoid = nn.Sigmoid()
+        
 
     def init_policy(self):
         cfg = self.cfg
@@ -121,7 +123,7 @@ class GFN:
         r = self.process_reward(states, task).to(self.device)
         self.opt.zero_grad()
         self.opt_Z.zero_grad()
-        import pdb; pdb.set_trace();
+        # import pdb; pdb.set_trace();
         # TB Loss
         loss = (logprobs - self.sample_beta * r.clamp(self.reward_min).log()).pow(2).mean()
         loss.backward()
@@ -179,7 +181,7 @@ class GFN:
         return generated_seqs, np.array(rewards)
 
     def process_reward(self, seqs, task):
-        return self.sigmoid(task(seqs))
+        return task(seqs).squeeze()
 
     def val_step(self, batch_size, task):
         overall_loss = 0.
@@ -211,6 +213,36 @@ class GFN:
         seq_logits += self.model.Z()
         return seq_logits
 
+class OffsetTask:
+    def __init__(self, task, offset):
+        self.task = task
+        self.offset = offset
+    
+    def __call__(self, x):
+        return self.offset + self.task(x)
+
+class ClassificationTask:
+    def __init__(self, task):
+        self.task = task
+        self.sigmoid = nn.Sigmoid()
+    
+    def __call__(self, x):
+        return self.sigmoid(self.task(x))
+
+def mean_pairwise_distances(seqs):
+    dists = []
+    for pair in itertools.combinations(seqs, 2):
+        dists.append(edit_dist(*pair))
+    return np.mean(dists)
+
+def evaluate_samples(seqs, scores, k):
+    indices = np.argsort(scores)[::-1][:k]
+    topk_scores = scores[indices]
+    topk_prots = np.array(seqs)[indices]
+    diversity_score = mean_pairwise_distances(topk_prots)
+    score = topk_scores.mean()
+    return score, diversity_score
+
 @hydra.main(config_path='./config', config_name='amp')
 def main(config):
     random.seed(None)  # make sure random seed resets between multirun jobs for random job-name generation
@@ -234,10 +266,16 @@ def main(config):
         proxy.load(config.load_proxy_path)
     else:
         proxy.fit(dataset)
+    if config.use_offset:
+        task = OffsetTask(proxy, dataset.offset)
+    else:
+        task = ClassificationTask(proxy)
     generator = GFN(config.gfn, tokenizer)
-    generator.optimize(proxy)
+    generator.optimize(task)
 
-    samples, scores = generator.generate(config.num_samples)
+    samples, scores = generator.generate(config.num_samples, task)
+    score, diversity_score = evaluate_samples(samples, scores, config.k)
+    print("Score: {}, Diversity: {}".format(score, diversity_score))
     # scores = proxy.score(samples)
     wandb.finish()
 

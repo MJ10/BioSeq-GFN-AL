@@ -63,7 +63,7 @@ class GFNTransformer(nn.Module):
         return y
 
 class Transformer(nn.Module):
-    def __init__(self, num_hid, max_len, vocab_size, num_outputs, dropout, num_layers, partition_init,
+    def __init__(self, num_hid, max_len, vocab_size, num_outputs, dropout, num_layers,
                 num_head, **kwargs):
         super().__init__()
         self.pos = PositionalEncoding(num_hid, dropout=dropout, max_len=max_len + 2)

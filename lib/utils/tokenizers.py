@@ -34,6 +34,10 @@ TOY_VOCAB = [
 ]
 TOY_ALPHABET = ["[PAD]", "[CLS]", "[UNK]", "[MASK]", "[SEP]"] + TOY_VOCAB + ["0"]
 
+
+# AA_DUMMY = list(range(20))
+# AA_DUMMY_ALPHABET = ["[PAD]", "[CLS]", "[UNK]", "[MASK]", "[SEP]"] + TOY_VOCAB + ["0"]
+
 def padding_collate_fn(batch, padding_value=0.0):
     with torch.no_grad():
         if isinstance(batch[0], tuple):
@@ -123,6 +127,13 @@ class ToyTokenizer(IntTokenizer):
     def __init__(self):
         super().__init__(TOY_VOCAB, TOY_ALPHABET)
 
+class DesignBenchTokenizer(IntTokenizer):
+    def __init__(self):
+        super().__init__(AMINO_ACIDS, RESIDUE_ALPHABET)
+
+    @cached(cache=LRUCache(maxsize=int(1e4)))
+    def encode(self, seq, use_sep=False):
+        return [self.convert_token_to_id(c) for c in seq]
 
 def random_strings(num, min_len=200, max_len=250, alphabet=AMINO_ACIDS):
     strs = []
