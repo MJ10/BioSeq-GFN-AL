@@ -270,7 +270,7 @@ def main(config):
     else:
         proxy.fit(dataset)
     if config.use_offset:
-        task = OffsetTask(proxy, dataset.offset)
+        task = OffsetTask(proxy, -dataset.offset)
     else:
         task = ClassificationTask(proxy)
     generator = GFN(config.gfn, tokenizer)
