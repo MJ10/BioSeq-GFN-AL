@@ -73,6 +73,7 @@ class GFN:
         self.gen_clip = cfg.gen_clip
         self.sampling_temp = cfg.sampling_temp
         self.sample_beta = cfg.sample_beta
+        self.eval_batch_size = cfg.eval_batch_size
         # Eval Stuff
         # self.eval_freq = cfg.eval_freq
         # self.k = cfg.k
@@ -174,9 +175,9 @@ class GFN:
         rewards = []
         while len(generated_seqs) < num_samples:
             with torch.no_grad():
-                samples, _ = self.sample(self.eval_batch_size, train=False).tolist()
-                r = self.process_reward(samples, task).numpy().tolist()
-            generated_seqs.extend(samples)
+                samples, _ = self.sample(self.eval_batch_size, train=False)
+                r = self.process_reward(samples, task).cpu().numpy().tolist()
+            generated_seqs.extend(samples.tolist())
             rewards.extend(r)
         return generated_seqs, np.array(rewards)
 

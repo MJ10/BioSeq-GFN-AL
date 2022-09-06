@@ -13,8 +13,9 @@ timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 log_dir: ${data_dir}/${exp_name}
 wandb_mode: disabled
 data_path: 'data/'
-num_samples: 10000
-load_proxy_path: 'proxy.pt'
+num_samples: 5000
+k: 100
+load_proxy_path: null
 use_offset: False
 
 hydra:
@@ -34,20 +35,20 @@ tokenizer:
 
 gfn:
   random_action_prob: 0.01
-  max_len: 50
+  max_len: 60
   min_len: 12
   batch_size: 16
   reward_min: 1e-20
   sampling_temp: 1
-  train_steps: 1000
-  pi_lr: 0.001
-  z_lr: 0.001
+  train_steps: 20000
+  pi_lr: 0.005
+  z_lr: 0.01
   wd: 0.0001
   gen_clip: 10
   sample_beta: 3
   eval_freq: 100
   k: 100
-  num_samples: 5000
+  eval_batch_size: 64
   data_per_step: 16
   
   model:
@@ -55,7 +56,7 @@ gfn:
     max_len: 60
     vocab_size: 26
     num_actions: 21
-    num_hid: 128
+    num_hid: 64
     num_layers: 3
     num_head: 8
     dropout: 0
@@ -63,11 +64,11 @@ gfn:
 
 proxy:
   _target_: lib.proxy.regression.TransformerDropout
-  learning_rate: 1e-5
+  learning_rate: 1e-4
   num_layers: 4
   L2: 1e-6
-  batch_size: 128
-  early_stop_tol: 5
+  batch_size: 256
+  early_stop_tol: 15
   train_steps: 100000
   num_dropout_samples: 25
   max_len: 65
@@ -79,7 +80,7 @@ proxy:
     max_len: 239
     vocab_size: 26
     num_outputs: 1
-    num_hid: 128
-    num_layers: 3
+    num_hid: 64
+    num_layers: 4
     num_head: 8
     dropout: 0
