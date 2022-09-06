@@ -133,6 +133,7 @@ class DesignBenchTokenizer(IntTokenizer):
 
     @cached(cache=LRUCache(maxsize=int(1e4)))
     def encode(self, seq, use_sep=False):
+        seq = ["[CLS]"] + list(seq)
         return [self.convert_token_to_id(c) for c in seq]
 
 def random_strings(num, min_len=200, max_len=250, alphabet=AMINO_ACIDS):

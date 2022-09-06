@@ -139,11 +139,12 @@ class GFN:
         traj_logprob = torch.zeros(episodes).to(self.device)
 
         active_mask = torch.ones(episodes).bool().to(self.device)
-        x = str_to_tokens(states, self.tokenizer).to(self.device).t()[:1]
+        x = str_to_tokens(states, self.tokenizer, use_sep=False).to(self.device).t()[:1].long()
         lens = torch.zeros(episodes).long().to(self.device)
         uniform_pol = torch.empty(episodes).fill_(self.random_action_prob).to(self.device)
 
         for t in (range(self.max_len) if episodes > 0 else []):
+            # import pdb;pdb.set_trace();
             logits = self.model(x, lens=lens, mask=None)
             
             if t <= self.min_len:
@@ -240,11 +241,12 @@ def evaluate_samples(seqs, scores, k):
     indices = np.argsort(scores)[::-1][:k]
     topk_scores = scores[indices]
     topk_prots = np.array(seqs)[indices]
+    print(topk_prots)
     diversity_score = mean_pairwise_distances(topk_prots)
     score = topk_scores.mean()
     return score, diversity_score
 
-@hydra.main(config_path='./config', config_name='amp')
+@hydra.main(config_path='./config', config_name='gfp')
 def main(config):
     random.seed(None)  # make sure random seed resets between multirun jobs for random job-name generation
 

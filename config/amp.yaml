@@ -13,7 +13,7 @@ timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 log_dir: ${data_dir}/${exp_name}
 wandb_mode: disabled
 data_path: 'data/'
-num_samples: 5000
+num_samples: 1000
 k: 100
 load_proxy_path: null
 use_offset: False

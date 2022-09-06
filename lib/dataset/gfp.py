@@ -15,7 +15,7 @@ class GFPCLSDataset():
         dataset = GFPDataset()
         # import pdb;pdb.set_trace();
         dataset.map_normalize_y()
-        import pdb;pdb.set_trace();
+        # import pdb;pdb.set_trace();
         x = self._process_x(dataset.x)
 
         y = dataset.y.reshape(-1)

@@ -13,7 +13,8 @@ timestamp: ${now:%Y-%m-%d_%H-%M-%S}
 log_dir: ${data_dir}/${exp_name}
 wandb_mode: disabled
 data_path: 'data/'
-num_samples: 10000
+num_samples: 1000
+k: 100
 load_proxy_path: null
 use_offset: True
 
@@ -34,8 +35,8 @@ tokenizer:
 
 gfn:
   random_action_prob: 0.01
-  max_len: 50
-  min_len: 12
+  max_len: 237
+  min_len: 237
   batch_size: 16
   reward_min: 1e-20
   sampling_temp: 1
@@ -49,6 +50,7 @@ gfn:
   k: 100
   num_samples: 5000
   data_per_step: 16
+  eval_batch_size: 16
   
   model:
     _target_: lib.model.transformer.GFNTransformer
