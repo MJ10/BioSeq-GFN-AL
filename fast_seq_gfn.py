@@ -160,6 +160,7 @@ class GFN:
                 actions = torch.where(uniform_mix, torch.randint(int(t <= self.min_len), logits.shape[1], (episodes, )).to(self.device), actions)
             
             log_prob = cat.log_prob(actions) * active_mask
+            lens += torch.where(active_mask, torch.ones_like(lens), torch.zeros_like(lens))
             traj_logprob += log_prob
 
             actions_apply = torch.where(torch.logical_not(active_mask), torch.zeros(episodes).to(self.device).long(), actions + 4)
