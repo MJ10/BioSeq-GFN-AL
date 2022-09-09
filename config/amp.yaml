@@ -41,7 +41,7 @@ gfn:
   reward_min: 1e-20
   sampling_temp: 1
   train_steps: 20000
-  pi_lr: 0.005
+  pi_lr: 0.001
   z_lr: 0.01
   wd: 0.0001
   gen_clip: 10
