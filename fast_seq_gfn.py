@@ -247,7 +247,7 @@ def evaluate_samples(seqs, scores, k):
     score = topk_scores.mean()
     return score, diversity_score
 
-@hydra.main(config_path='./config', config_name='gfp')
+@hydra.main(config_path='./config', config_name='amp_logrank')
 def main(config):
     random.seed(None)  # make sure random seed resets between multirun jobs for random job-name generation
 
