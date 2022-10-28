@@ -88,6 +88,30 @@ class Transformer(nn.Module):
         return y
 
 
+class TransformerLVM(nn.Module):
+    def __init__(self, num_hid, max_len, vocab_size, num_outputs, dropout, num_layers,
+                num_head, num_aux, **kwargs):
+        super().__init__()
+        self.pos = PositionalEncoding(num_hid, dropout=dropout, max_len=max_len + 2)
+        self.embedding = nn.Embedding(vocab_size, num_hid)
+        encoder_layers = nn.TransformerEncoderLayer(num_hid, num_head, num_hid, dropout=dropout)
+        self.encoder = nn.TransformerEncoder(encoder_layers, num_layers)
+        self.output = MLP(num_hid + num_aux, num_outputs, [2 * num_hid, 2 * num_hid], dropout)
+        # self.logsoftmax2 = torch.nn.LogSoftmax(2)
+        self.num_hid = num_hid
+
+    def model_params(self):
+        return list(self.pos.parameters()) + list(self.embedding.parameters()) + list(self.encoder.parameters()) + \
+            list(self.output.parameters())
+
+    def forward(self, x, mask, med, conc, count):
+        x = self.embedding(x)
+        x = self.pos(x)
+        x = self.encoder(x, src_key_padding_mask=mask)
+        pooled_x = x[0, torch.arange(x.shape[1])]
+        y = self.output(torch.cat((pooled_x, med, conc, count), axis=1))
+        return y
+
 def generate_square_subsequent_mask(sz: int):
     """Generates an upper-triangular matrix of -inf, with zeros on diag."""
     return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)

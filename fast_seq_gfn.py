@@ -73,9 +73,12 @@ class GFN:
         self.gen_clip = cfg.gen_clip
         self.sampling_temp = cfg.sampling_temp
         self.sample_beta = cfg.sample_beta
+        self.val_batch_size = cfg.val_batch_size
         self.eval_batch_size = cfg.eval_batch_size
+        self.eval_samples = cfg.eval_samples
         # Eval Stuff
-        # self.eval_freq = cfg.eval_freq
+        self.eval_freq = cfg.eval_freq
+        self.offline_gamma = cfg.offline_gamma
         # self.k = cfg.k
         # self.num_samples = cfg.num_samples
         self.eos_char = "[SEP]"
@@ -92,35 +95,47 @@ class GFN:
         self.opt_Z = torch.optim.Adam(self.model.Z_param(), cfg.z_lr, weight_decay=cfg.wd,
                             betas=(0.9, 0.999))
 
-    def optimize(self, task, init_data=None):
+    def optimize(self, task, init_data=None, val_data=None):
         """
         optimize the task involving multiple objectives (all to be maximized) with 
         optional data to start with
         """
         losses, rewards = [], []
+        val_losses, rews = 0, 0
         pb = tqdm(range(self.train_steps))
-        desc_str = "Evaluation := Reward: {:.3f} | Train := Loss: {:.3f} Rewards: {:.3f}"
-        pb.set_description(desc_str.format(0, sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
+        desc_str = "Evaluation := Reward: {:.3f} Val Loss: {:.3f} | Train := Loss: {:.3f} Rewards: {:.3f}"
+        pb.set_description(desc_str.format(0, 0, sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
 
         for i in pb:
-            loss, r = self.train_step(task, self.batch_size)
+            loss, r = self.train_step(task, self.batch_size, init_data)
             losses.append(loss)
             rewards.append(r)
             
-            # if i % self.eval_freq == 0:
-            #     with torch.no_grad():
-            #         self.evaluation(task)
+            if i % self.eval_freq == 0:
+                with torch.no_grad():
+                    rews, val_losses = self.evaluation(task, val_data)
                 
-            pb.set_description(desc_str.format(0, sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
+            pb.set_description(desc_str.format(rews, val_losses, sum(losses[-10:]) / 10, sum(rewards[-10:]) / 10))
         
         return {
             'losses': losses,
             'train_rs': rewards
         }
     
-    def train_step(self, task, batch_size):
-        states, logprobs = self.sample(batch_size)
+    def sample_offline_data(self, dataset, batch_size):
+        w = np.array(dataset[1])
+        return np.random.choice(dataset[0], size=batch_size, replace=False, p = np.exp(w - w.max()) / np.exp(w-w.max()).sum(0))
 
+    def train_step(self, task, batch_size, init_data=None):
+        states, logprobs = self.sample(batch_size)
+        
+        if init_data is not None and self.offline_gamma > 0 and int(self.offline_gamma * batch_size) > 0:
+            offline_batch = self.sample_offline_data(init_data, int(self.offline_gamma * batch_size))
+            # cond_var, _ = self._get_condition_var(prefs=prefs, beta=beta, train=True, bs=int(self.offline_gamma * batch_size))
+            offline_logprobs = self._get_log_prob(offline_batch)
+            logprobs = torch.cat((logprobs, offline_logprobs), axis=0)
+            states = np.concatenate((states, offline_batch), axis=0)
+    
         r = self.process_reward(states, task).to(self.device)
         self.opt.zero_grad()
         self.opt_Z.zero_grad()
@@ -186,26 +201,26 @@ class GFN:
     def process_reward(self, seqs, task):
         return task(seqs).squeeze()
 
-    def val_step(self, batch_size, task):
+    def val_step(self, val_data, batch_size, task):
         overall_loss = 0.
-        num_batches = len(self.val_split.inputs) // self.batch_size
+        num_batches = len(val_data[0]) // batch_size
         losses = 0
-        for state, r in self.val_loader:
-            state, r = x.to(self.device), y.to(self.device)
+        for i in range(num_batches):
+            states = val_data[0][i*batch_size:(i+1)*batch_size]
             logprobs = self._get_log_prob(states)
 
-            r = self.process_reward(state, task).to(seq_logits.device)
-            loss = (seq_logits - self.sample_beta * r.clamp(min=self.reward_min).log()).pow(2).mean()
+            r = self.process_reward(states, task).to(logprobs.device)
+            loss = (logprobs - self.sample_beta * r.clamp(min=self.reward_min).log()).pow(2).mean()
 
             losses += loss.item()
         overall_loss += (losses)
-        return overall_loss / len(self.simplex)
+        return overall_loss / num_batches
 
-    def evaluation(self, task):
-        val_loss = self.val_step(self.batch_size)
-        samples = self.generate(self.eval_samples)
-        rewards = self.process_reward(samples, task)
-        return val_loss, rewards
+    def evaluation(self, task, val_data):
+        val_loss = self.val_step(val_data, self.val_batch_size, task)
+        samples, rewards = self.generate(self.eval_samples, task)
+        # rewards = self.process_reward(samples, task)
+        return rewards.mean(), val_loss
 
     def _get_log_prob(self, states):
         lens = torch.tensor([len(z) + 2 for z in states]).long().to(self.device)
@@ -247,7 +262,7 @@ def evaluate_samples(seqs, scores, k):
     score = topk_scores.mean()
     return score, diversity_score
 
-@hydra.main(config_path='./config', config_name='amp_logrank')
+@hydra.main(config_path='./config', config_name='amp_experimental')
 def main(config):
     random.seed(None)  # make sure random seed resets between multirun jobs for random job-name generation
 
@@ -275,7 +290,7 @@ def main(config):
     else:
         task = ClassificationTask(proxy)
     generator = GFN(config.gfn, tokenizer)
-    generator.optimize(task)
+    generator.optimize(task, init_data=dataset.training_data, val_data=dataset.validation_set())
 
     samples, scores = generator.generate(config.num_samples, task)
     score, diversity_score = evaluate_samples(samples, scores, config.k)

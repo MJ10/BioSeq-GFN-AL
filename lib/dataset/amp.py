@@ -3,6 +3,14 @@ from sklearn.model_selection import GroupKFold, train_test_split
 from clamp_common_eval.defaults import get_default_data_splits
 import pandas as pd
 import os
+import random
+import pickle
+
+def one_hot(loc, num):
+    temp = np.zeros(num)
+    temp[loc] = 1
+    return temp
+
 
 class AMPClassificationDataset:
     def __init__(self, split, nfold):
@@ -85,23 +93,48 @@ class AMPClassificationDataset:
 
 
 class AMPExperimentalDataset:
-    def __init__(self, path):
+    def __init__(self, path, load_cache=False, save_cache=True, cache_path=None):
         self.rng = np.random.RandomState(142857)
+        self.load_cache = load_cache
+        self.save_cache=save_cache
+        self.cache_path = cache_path
         self._load_dataset(path)
         # self._compute_scores(split)
         self.train_added = len(self.train)
         self.val_added = len(self.valid)
 
     def _load_dataset(self, base_path):
-        df_m1 = pd.read_csv(os.path.join(base_path, "20220531-AMPs-lib-liquid-samples.csv"))
-        df_m2 = pd.read_csv(os.path.join(base_path, "20220531-AMPs-lib-plate-samples.csv"))
-        
+        if not self.load_cache or self.cache_path is None:
+            print("loading data")
+            df_m1 = pd.read_csv(os.path.join(base_path, "20220531-AMPs-lib-liquid-samples.csv"))
+            df_m2 = pd.read_csv(os.path.join(base_path, "20220531-AMPs-lib-plate-samples.csv"))
+            data = []
+            for i in range(len(df_m1)):
+                record = df_m1.iloc[i]
+                for j in range(3,8):
+                    data.append((record[1], [1,0], one_hot(j-3, 5), np.log(max(1e-4, record[j]))))
+                
+            for i in range(len(df_m2)):
+                record = df_m2.iloc[i]
+                for j in range(3,8):
+                    data.append((record[1], [0,1], one_hot(j-3, 5), np.log(max(1e-4, record[j]))))
+            # import pdb;pdb.set_trace();
+            
+            if self.save_cache:
+                with open(self.cache_path, "wb") as f:
+                    pickle.dump(data, f)
+        else:
+            with open(self.cache_path, "rb") as f:
+                data = pickle.load(f)
+        random.shuffle(data)
+        num_examples = len(data)
+        self.train = data[:int(0.85 * num_examples)]
+        self.valid = data[int(0.85 * num_examples):] 
 
 
     def sample(self, n):
         indices = np.random.randint(0, len(self.train), n)
-        return ([self.train[i] for i in indices],
-                [self.train_scores[i] for i in indices])
+        return list(zip(*[self.train[i] for i in indices]))
 
     def validation_set(self):
         return self.valid, self.valid_scores
@@ -157,7 +190,8 @@ class AMPLogRankDataset:
         self.train_scores = train_Y.tolist()
         self.valid = val_X.tolist()
         self.valid_scores = val_Y.tolist()
-        import pdb; pdb.set_trace();
+        self.training_data = (self.train, self.train_scores)
+        # import pdb; pdb.set_trace();
 
     def sample(self, n):
         indices = np.random.randint(0, len(self.train), n)

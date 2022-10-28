@@ -15,7 +15,7 @@ wandb_mode: disabled
 data_path: 'data/'
 num_samples: 1000
 k: 100
-load_proxy_path: 'proxy.pt'
+load_proxy_path: null
 use_offset: True
 
 hydra:
@@ -28,6 +28,9 @@ hydra:
 dataset:
   _target_: lib.dataset.amp.AMPExperimentalDataset
   path: "~/BioSeq-GFN-AL/data/"
+  load_cache: False
+  save_cache: True
+  cache_path: "exp_cache.pkl"
   # medium: "plate"
 
 tokenizer:
@@ -68,8 +71,7 @@ gfn:
     partition_init: 150
 
 proxy:
-  _target_: lib.proxy.regression.TransformerDropout
-  learning_rate: 1e-5
+  _target_: lib.proxy.lvm.LVMN
   num_layers: 4
   L2: 1e-6
   batch_size: 128
@@ -77,10 +79,13 @@ proxy:
   train_steps: 100000
   num_dropout_samples: 25
   max_len: 65
+  gfn: False
+  p_lr: 1e-4
+  q_lr: 1e-4
   classification: False
   early_stop_to_best_params: True
-  save_path: 'proxy.pt'
-  model: 
+  save_path: null
+  model_p_o:
     _target_: lib.model.transformer.Transformer
     max_len: 65
     vocab_size: 26
@@ -89,3 +94,21 @@ proxy:
     num_layers: 3
     num_head: 8
     dropout: 0
+  
+  model_q_o: 
+    _target_: lib.model.transformer.TransformerLVM
+    max_len: 65
+    vocab_size: 26
+    num_outputs: 1
+    num_hid: 64
+    num_layers: 3
+    num_head: 8
+    dropout: 0
+    num_aux: 8
+    
+  model_p_c: 
+    _target_: lib.model.transformer.MLP
+    in_dim: 8
+    out_dim: 1
+    hidden_layers: [64, 64]
+    dropout_prob: 0.1
