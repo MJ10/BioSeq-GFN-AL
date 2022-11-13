@@ -11,6 +11,10 @@ def one_hot(loc, num):
     temp[loc] = 1
     return temp
 
+conc_mapping = [
+    0.1, 0.5, 1, 3
+]
+
 
 class AMPClassificationDataset:
     def __init__(self, split, nfold):
@@ -106,18 +110,28 @@ class AMPExperimentalDataset:
     def _load_dataset(self, base_path):
         if not self.load_cache or self.cache_path is None:
             print("loading data")
+            
+            rank_df_m1 = pd.read_csv(os.path.join(base_path, "logrank_liquid.csv"))
+            rank_df_m2 = pd.read_csv(os.path.join(base_path, "logrank_plate.csv"))
+
+            m1_good =  rank_df_m1.iloc[:self.num_bootsrap]
+            m1_bad = rank_df_m1.iloc[-self.num_bootsrap:] 
+
+            m2_good =  rank_df_m2.iloc[:self.num_bootsrap]
+            m2_bad = rank_df_m2.iloc[-self.num_bootsrap:]
+
             df_m1 = pd.read_csv(os.path.join(base_path, "20220531-AMPs-lib-liquid-samples.csv"))
             df_m2 = pd.read_csv(os.path.join(base_path, "20220531-AMPs-lib-plate-samples.csv"))
             data = []
             for i in range(len(df_m1)):
                 record = df_m1.iloc[i]
-                for j in range(3,8):
-                    data.append((record[1], [1,0], one_hot(j-3, 5), np.log(max(1e-4, record[j]))))
-                
+                for j in range(4,8):
+                    data.append((record[1], [1,0], conc_mapping[j-4], np.log2(1e-7 + record[j]) - np.log2(1e-7 + record[3])))
+
             for i in range(len(df_m2)):
                 record = df_m2.iloc[i]
                 for j in range(3,8):
-                    data.append((record[1], [0,1], one_hot(j-3, 5), np.log(max(1e-4, record[j]))))
+                    data.append((record[1], [0,1], conc_mapping[j-4], np.log2(1e-7 + record[j]) - np.log2(1e-7 + record[3])))
             # import pdb;pdb.set_trace();
             
             if self.save_cache:
@@ -137,7 +151,7 @@ class AMPExperimentalDataset:
         return list(zip(*[self.train[i] for i in indices]))
 
     def validation_set(self):
-        return self.valid, self.valid_scores
+        return list(zip(*self.valid))
 
     def add(self, batch):
         samples, scores = batch
