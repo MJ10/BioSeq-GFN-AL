@@ -9,7 +9,7 @@ The code has been tested with Python 3.7 with CUDA 10.2 and CUDNN 8.0.
 
 1. Install design-bench from our fork [`MJ10/design-bench`](https://github.com/MJ10/design-bench). This fork only changes some dependencies and resolves some minor changes to make it compatible with our code. To install clone the repo and run `pip install -e .` in the directory where the repo is cloned.
 2. Instal the clamp-common-eval library from [MJ10/clamp-gen-data](https://github.com/MJ10/clamp-gen-data). This library handles the loading of the AMP data as well as oracles. To install clone the repo and run `pip install -r requirements.txt && pip install -e .` in the directory where the repo is cloned.
-3. Run `pip install -e requirements.txt` in this directory to install the remaining packages.
+3. Run `pip install -r requirements.txt` in this directory to install the remaining packages.
 
 ## Running the code
 `run_amp.py`, `run_gfp.py`, and `run_tfbind.py` are the entry points for the experiments.
