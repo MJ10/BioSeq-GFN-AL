@@ -2,7 +2,7 @@
 
 This repo contains code for the paper [Biological Sequence Design with GFlowNets](http://arxiv.org/abs/2203.04115). 
 
-The code has been extracted from an internal repository of the Mila Molecule Discovery project with some changes, so the hyperparameters might vary. Original commits are lost here, but the credit goes to [@MJ10](https://github.com/MJ10) and [@bengioe](https://github.com/bengioe).  
+The code has been extracted from an internal repository of the Mila Molecule Discovery project with some changes, so the hyperparameters might vary. Original commits are lost here, but the credit goes to [@MJ10](https://github.com/MJ10) and [@bengioe](https://github.com/bengioe). **There are some stability issues in training for the GFP task with this repo.**
 
 ## Setup
 The code has been tested with Python 3.7 with CUDA 10.2 and CUDNN 8.0.
